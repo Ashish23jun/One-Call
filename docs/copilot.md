@@ -662,10 +662,10 @@ ws.onmessage = (event) => {
 
 - [x] Signaling server (WebSocket) ✅
 - [x] Client SDK (TypeScript) ✅
-- [ ] Demo SaaS app (React)
-- [ ] Test end-to-end (two browsers)
+- [x] End-to-end testing (two browsers) ✅
 - [ ] Rate limiting
 - [ ] API documentation (OpenAPI)
+- [ ] Demo React app (optional)
 
 ---
 
@@ -854,8 +854,7 @@ This is INFRASTRUCTURE for SaaS products.
 rtc-platform/
 ├── apps/
 │   ├── api/            # Tenant, room, token APIs
-│   ├── signaling/      # WebSocket signaling server
-│   └── demo-saas/      # Example SaaS using SDK
+│   └── signaling/      # WebSocket signaling server
 │
 ├── packages/
 │   ├── sdk/            # PUBLIC SDK (main product)
@@ -998,24 +997,25 @@ Max 2 participants per room.
 
 ---
 
-## 9️⃣ DEMO SAAS APP REQUIREMENTS
+## 9️⃣ SDK INTEGRATION GUIDE
 
-Demo app simulates a SaaS customer.
+The SDK was tested end-to-end with two browser tabs successfully connecting via WebRTC.
 
-**Purpose:**
-- Prove SDK integration simplicity
-- Act as reference implementation
+**Integration Flow:**
+1. Create tenant via `POST /apps`
+2. Create room via `POST /rooms` (with app credentials)
+3. Generate token via `POST /rooms/:roomId/token`
+4. Initialize SDK: `CallSDK.init({ appId })`
+5. Get user media: `navigator.mediaDevices.getUserMedia()`
+6. Join room: `CallSDK.join({ roomId, token, stream })`
+7. Handle events: `user-joined`, `track-added`, `error`
+8. Leave: `CallSDK.leave()`
 
-**Flow:**
-1. Mock tenant login
-2. Create meeting (backend call)
-3. Generate token
-4. Join meeting via SDK
-
-**Rules:**
-- Use SDK exactly like customers would
-- No shortcuts
-- Copy-paste friendly code
+**Tested Scenarios:**
+- Two tabs joining same room
+- Video/audio track exchange
+- Peer connection establishment
+- Leave and cleanup
 
 ---
 
