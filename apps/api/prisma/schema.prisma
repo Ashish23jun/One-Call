@@ -1,0 +1,42 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Represents a SaaS customer (tenant).
+/// All data is scoped to a tenant.
+model App {
+  id        String   @id @default(cuid())
+  name      String
+  secret    String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  rooms Room[]
+
+  @@map("apps")
+}
+
+/// A meeting room owned by a tenant.
+model Room {
+  id              String   @id @default(cuid())
+  name            String
+  maxParticipants Int      @default(2) @map("max_participants")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Foreign key to App (tenant)
+  appId String @map("app_id")
+  app   App    @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@map("rooms")
+}

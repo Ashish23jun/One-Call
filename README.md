@@ -1,135 +1,161 @@
-# Turborepo starter
+# One-Call
 
-This Turborepo starter is maintained by the Turborepo core team.
+> **"Stripe for meetings" | "Auth0 for calls"**
 
-## Using this example
+A production-grade, multi-tenant, embeddable Real-Time Communication (RTC) platform. This is infrastructure for SaaS products to add video/audio calling capabilities.
 
-Run the following command:
+## 🎯 What is One-Call?
 
-```sh
-npx create-turbo@latest
-```
+One-Call is **NOT** a video calling app. It's **infrastructure** that SaaS products embed to add real-time communication features.
 
-## What's inside?
+**Target users:**
+- SaaS founders adding video features
+- Interview platforms
+- LMS / internal tools
+- Telehealth applications
 
-This Turborepo includes the following packages/apps:
-
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
+## 🏗️ Architecture
 
 ```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+┌─────────────────────────────────────────────────────────────┐
+│                     Your SaaS Backend                        │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐      │
+│  │ Create App  │───▶│ Create Room │───▶│ Get Token   │      │
+│  └─────────────┘    └─────────────┘    └─────────────┘      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (JWT Token)
+┌─────────────────────────────────────────────────────────────┐
+│                    Your Frontend (SDK)                       │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  CallSDK.join({ roomId, token })                    │    │
+│  │  CallSDK.on("user-joined", handler)                 │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼ (WebSocket + WebRTC)
+┌─────────────────────────────────────────────────────────────┐
+│                   One-Call Infrastructure                    │
+│  ┌──────────┐    ┌─────────────┐    ┌──────────────┐        │
+│  │   API    │    │  Signaling  │    │  STUN/TURN   │        │
+│  └──────────┘    └─────────────┘    └──────────────┘        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## 📁 Monorepo Structure
 
 ```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+one-call/
+├── apps/
+│   ├── api/            # Tenant, room, token REST APIs (Fastify + Prisma)
+│   ├── signaling/      # WebSocket signaling server
+│   └── demo-saas/      # Example SaaS using SDK
+│
+├── packages/
+│   ├── sdk/            # PUBLIC SDK (main product)
+│   ├── shared/         # Types, events, errors
+│   └── auth/           # JWT helpers, token validation
+│
+├── infra/
+│   └── docker/         # Docker Compose for local dev
+│
+└── docs/
+    └── copilot.md      # Architecture & changelog
 ```
 
-### Develop
+## 🚀 Quick Start
 
-To develop all apps and packages, run the following command:
+### Prerequisites
+- Node.js 18+
+- pnpm
+- Docker (for PostgreSQL)
 
-```
-cd my-turborepo
+### Setup
 
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
+```bash
+# 1. Clone the repo
+git clone git@github.com:Ashish23jun/One-Call.git
+cd One-Call
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
+# 2. Install dependencies
+pnpm install
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+# 3. Start PostgreSQL
+cd infra/docker && docker-compose up -d && cd ../..
 
-```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+# 4. Setup database
+cd apps/api
+pnpm db:generate
+pnpm db:migrate
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+# 5. Start the API server
+pnpm dev
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+### API Endpoints
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | \`/apps\` | Create tenant | None |
+| GET | \`/apps\` | List tenants | None |
+| POST | \`/rooms\` | Create room | \`x-app-id\`, \`x-app-secret\` |
+| GET | \`/rooms\` | List rooms | \`x-app-id\`, \`x-app-secret\` |
+| POST | \`/rooms/:roomId/token\` | Generate access token | \`x-app-id\`, \`x-app-secret\` |
 
+### Example Usage
+
+```bash
+# 1. Create a tenant (your SaaS app)
+curl -X POST http://localhost:3000/apps \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My Interview Platform"}'
+
+# Response: { "id": "clx...", "name": "...", "secret": "sk_..." }
+
+# 2. Create a room
+curl -X POST http://localhost:3000/rooms \
+  -H "Content-Type: application/json" \
+  -H "x-app-id: <your-app-id>" \
+  -H "x-app-secret: <your-app-secret>" \
+  -d '{"name": "Interview #123"}'
+
+# 3. Generate a token for a user
+curl -X POST http://localhost:3000/rooms/<room-id>/token \
+  -H "Content-Type: application/json" \
+  -H "x-app-id: <your-app-id>" \
+  -H "x-app-secret: <your-app-secret>" \
+  -d '{"userId": "candidate-456", "role": "participant"}'
 ```
-# With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
 
-# Without [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
+## 🔧 Tech Stack
 
-## Useful Links
+| Component | Technology |
+|-----------|------------|
+| Monorepo | Turborepo + pnpm |
+| API | Node.js + Fastify + TypeScript |
+| Database | PostgreSQL + Prisma |
+| Auth | JWT (short-lived tokens) |
+| Signaling | WebSocket (ws) |
+| Media | WebRTC (P2P) |
+| SDK | TypeScript (framework-agnostic) |
 
-Learn more about the power of Turborepo:
+## 📋 Roadmap
 
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- [x] Multi-tenant API (App, Room, Token)
+- [x] PostgreSQL + Prisma
+- [x] App auth middleware
+- [x] JWT with jti (revocation-ready)
+- [ ] Signaling server (WebSocket)
+- [ ] Client SDK
+- [ ] WebRTC integration
+- [ ] Demo SaaS app
+- [ ] Rate limiting
+- [ ] OpenAPI docs
+
+## 📄 License
+
+MIT
+
+---
+
+Built with ❤️ for SaaS developers who want to add real-time communication without the complexity.

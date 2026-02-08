@@ -1,0 +1,38 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "Multi-tenant RTC platform API",
+  "main": "dist/server/index.js",
+  "scripts": {
+    "dev": "pnpm db:generate && ts-node-dev --respawn --transpile-only src/server/index.ts",
+    "build": "pnpm db:generate && tsc",
+    "start": "node dist/server/index.js",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext .ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset"
+  },
+  "keywords": ["rtc", "multi-tenant", "fastify", "api"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/env": "^5.0.3",
+    "@prisma/client": "^6.6.0",
+    "fastify": "^5.7.4",
+    "fastify-plugin": "^5.0.1",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.2.2",
+    "pino-pretty": "^13.0.0",
+    "prisma": "^6.6.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
+  }
+}
