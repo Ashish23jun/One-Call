@@ -3,7 +3,12 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --parallel",
+    "dev:services": "docker-compose -f infra/docker/docker-compose.yml up -d && pnpm dev",
+    "start": "pnpm dev:services",
+    "db:up": "docker-compose -f infra/docker/docker-compose.yml up -d",
+    "db:down": "docker-compose -f infra/docker/docker-compose.yml down",
+    "db:setup": "pnpm db:up && cd apps/api && pnpm db:generate && pnpm db:push",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
