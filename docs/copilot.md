@@ -407,6 +407,104 @@ sdk.on('error', (err) => {
 
 ---
 
+#### 13. **WebSocket Signaling Server**
+
+**Files:**
+- `apps/signaling/package.json` - Dependencies & scripts
+- `apps/signaling/tsconfig.json` - TypeScript config
+- `apps/signaling/src/types.ts` - Message protocol types
+- `apps/signaling/src/room-manager.ts` - In-memory room/peer tracking
+- `apps/signaling/src/server.ts` - WebSocket server implementation
+- `apps/signaling/src/index.ts` - Entry point
+
+**What was done:**
+- Created a WebSocket signaling server using native `ws` library (NO Socket.IO)
+- Implemented JWT token validation on room join
+- Built in-memory room manager with peer tracking
+- Added heartbeat ping/pong for dead connection detection
+- Implemented full WebRTC signaling message relay (SDP offer/answer, ICE candidates)
+- Added peer join/leave notifications with initiator flag
+- Enforced max 2 participants per room (MVP limit)
+
+**Why:**
+- Signaling is required for WebRTC peer-to-peer connection establishment
+- Native `ws` gives maximum control and minimal overhead
+- Heartbeat detects and cleans up disconnected clients
+- In-memory state is sufficient (signaling data is ephemeral)
+- Token validation ensures only authorized users can join rooms
+
+**Message Protocol (LOCKED - SDK will consume):**
+
+| Direction | Message Type | Description |
+|-----------|--------------|-------------|
+| Client → Server | `join` | Join a room with JWT token |
+| Client → Server | `offer` | Send SDP offer |
+| Client → Server | `answer` | Send SDP answer |
+| Client → Server | `ice` | Send ICE candidate |
+| Client → Server | `leave` | Leave the room |
+| Server → Client | `joined` | Join confirmed with existing peers |
+| Server → Client | `peer-joined` | Another peer joined (includes isInitiator) |
+| Server → Client | `peer-left` | Another peer left |
+| Server → Client | `offer` | Relayed SDP offer |
+| Server → Client | `answer` | Relayed SDP answer |
+| Server → Client | `ice` | Relayed ICE candidate |
+| Server → Client | `error` | Error with code and message |
+
+**Error Codes:**
+| Code | Description |
+|------|-------------|
+| `INVALID_MESSAGE` | Malformed or unknown message type |
+| `INVALID_TOKEN` | JWT verification failed |
+| `TOKEN_EXPIRED` | JWT has expired |
+| `ROOM_FULL` | Room already has max participants |
+| `NOT_IN_ROOM` | Action requires being in a room |
+| `ALREADY_IN_ROOM` | Already joined a room |
+
+**Room Manager:**
+```typescript
+// Tracks peers and rooms in memory
+class RoomManager {
+  registerPeer(socketId): void      // Called on connect
+  joinRoom(socketId, roomId, userId, appId): JoinResult
+  leaveRoom(socketId): LeaveResult | null
+  getRoomPeers(socketId): string[]  // Other socket IDs in room
+  getPeer(socketId): Peer | undefined
+  cleanup(socketId): void           // Called on disconnect
+}
+```
+
+**WebSocket Flow:**
+```
+1. Client connects → Server assigns socketId, starts heartbeat
+2. Client sends `join` with JWT token
+3. Server validates token, checks room capacity
+4. Server sends `joined` with list of existing peers
+5. Server notifies existing peers with `peer-joined` (isInitiator: true)
+6. New peer creates offer, sends `offer`
+7. Server relays offer to other peer
+8. Other peer sends `answer`
+9. Server relays answer
+10. Both peers exchange `ice` candidates
+11. WebRTC connection established!
+12. On disconnect → Server sends `peer-left` to remaining peer
+```
+
+**Environment Variables:**
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SIGNALING_PORT` | WebSocket server port | 3001 |
+| `JWT_SECRET` | Secret for verifying JWTs | dev-secret |
+
+**Usage:**
+```bash
+# Start signaling server
+cd apps/signaling && pnpm dev
+
+# Server listens on ws://localhost:3001
+```
+
+---
+
 ### 📁 FINAL FILE STRUCTURE
 
 ```
@@ -449,6 +547,15 @@ apps/api/
 │           ├── token.schema.ts
 │           ├── token.types.ts
 │           └── index.ts
+
+apps/signaling/
+├── package.json                 # Dependencies (ws, jsonwebtoken)
+├── tsconfig.json
+├── src/
+│   ├── types.ts                # Message protocol types (LOCKED)
+│   ├── room-manager.ts         # In-memory room/peer tracking
+│   ├── server.ts               # WebSocket server
+│   └── index.ts                # Entry point
 ```
 
 ---
@@ -468,8 +575,11 @@ cd apps/api && pnpm db:generate
 # 4. Run migrations
 pnpm db:migrate
 
-# 5. Start the server
-pnpm dev
+# 5. Start the API server (port 3000)
+cd apps/api && pnpm dev
+
+# 6. Start the signaling server (port 3001)
+cd apps/signaling && pnpm dev
 ```
 
 ---
@@ -499,16 +609,181 @@ curl -X POST http://localhost:3000/rooms/{roomId}/token \
   -d '{"userId": "user-123", "role": "host"}'
 ```
 
+### 🧪 SIGNALING SERVER TESTING
+
+```javascript
+// Connect to signaling server
+const ws = new WebSocket('ws://localhost:3001');
+
+// Join a room
+ws.send(JSON.stringify({
+  type: 'join',
+  roomId: 'room-id-from-api',
+  token: 'jwt-token-from-api'
+}));
+
+// Listen for messages
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  
+  switch (msg.type) {
+    case 'joined':
+      console.log('Joined room:', msg.roomId);
+      console.log('Existing peers:', msg.peers);
+      break;
+    case 'peer-joined':
+      console.log('Peer joined:', msg.userId);
+      if (msg.isInitiator) {
+        // I should create the offer
+      }
+      break;
+    case 'offer':
+      // Handle incoming offer, create answer
+      break;
+    case 'answer':
+      // Handle incoming answer
+      break;
+    case 'ice':
+      // Add ICE candidate
+      break;
+    case 'peer-left':
+      console.log('Peer left:', msg.userId);
+      break;
+    case 'error':
+      console.error('Error:', msg.code, msg.message);
+      break;
+  }
+};
+```
+
 ---
 
 ### 🔜 NEXT STEPS (TODO)
 
-- [ ] Signaling server (WebSocket)
-- [ ] Client SDK (TypeScript)
+- [x] Signaling server (WebSocket) ✅
+- [x] Client SDK (TypeScript) ✅
 - [ ] Demo SaaS app (React)
-- [ ] WebRTC integration
+- [ ] Test end-to-end (two browsers)
 - [ ] Rate limiting
 - [ ] API documentation (OpenAPI)
+
+---
+
+#### 14. **Client SDK (packages/sdk)**
+
+**Files:**
+- `packages/sdk/package.json` - Dependencies & build config
+- `packages/sdk/tsconfig.json` - TypeScript config
+- `packages/sdk/src/types.ts` - Public API types & error codes
+- `packages/sdk/src/events/EventEmitter.ts` - Typed event system
+- `packages/sdk/src/signaling/SignalingClient.ts` - WebSocket client
+- `packages/sdk/src/webrtc/PeerConnection.ts` - WebRTC wrapper
+- `packages/sdk/src/CallSDK.ts` - Main public facade
+- `packages/sdk/src/index.ts` - Public exports
+
+**What was done:**
+- Created a framework-agnostic TypeScript SDK
+- Built a typed EventEmitter for internal/external events
+- Built SignalingClient with reconnection (exponential backoff)
+- Built PeerConnection wrapper with perfect negotiation pattern
+- Built CallSDK facade that glues everything together
+- Implemented full WebRTC flow: join, offer/answer, ICE exchange
+- SDK builds to ESM and CJS formats with type declarations
+
+**Why:**
+- SDK is the actual product - what customers integrate
+- Framework-agnostic means it works everywhere (React, Vue, vanilla JS)
+- Typed events prevent runtime errors
+- Perfect negotiation handles offer collisions gracefully
+- Single facade hides all WebRTC complexity
+
+**Public API (LOCKED):**
+
+```typescript
+import { CallSDK } from '@rtc-platform/sdk';
+
+// 1. Initialize
+CallSDK.init({ appId: 'your-app-id' });
+
+// 2. Get user media (your code)
+const stream = await navigator.mediaDevices.getUserMedia({
+  video: true,
+  audio: true,
+});
+
+// 3. Join room
+await CallSDK.join({
+  roomId: 'room-123',
+  token: 'jwt-from-backend',
+  stream,
+});
+
+// 4. Handle events
+CallSDK.on('user-joined', ({ userId }) => {
+  console.log('User joined:', userId);
+});
+
+CallSDK.on('track-added', ({ userId, stream }) => {
+  videoElement.srcObject = stream;
+});
+
+CallSDK.on('error', ({ code, message, fatal }) => {
+  console.error('Error:', code, message);
+});
+
+// 5. Leave
+CallSDK.leave();
+```
+
+**SDK Events:**
+| Event | Data | Description |
+|-------|------|-------------|
+| `user-joined` | `{ userId }` | Remote user joined the room |
+| `user-left` | `{ userId }` | Remote user left the room |
+| `track-added` | `{ userId, track, stream }` | Remote media track received |
+| `track-removed` | `{ userId, track }` | Remote media track removed |
+| `connection-state` | `{ state, previousState }` | Connection state changed |
+| `error` | `{ code, message, fatal }` | Error occurred |
+
+**Error Codes:**
+| Code | Description |
+|------|-------------|
+| `NOT_INITIALIZED` | SDK not initialized |
+| `ALREADY_INITIALIZED` | SDK already initialized |
+| `INVALID_CONFIG` | Invalid configuration |
+| `CONNECTION_FAILED` | WebSocket connection failed |
+| `CONNECTION_LOST` | WebSocket connection lost |
+| `RECONNECT_FAILED` | Failed to reconnect after max attempts |
+| `NOT_IN_ROOM` | Action requires being in a room |
+| `ALREADY_IN_ROOM` | Already in a room |
+| `ROOM_FULL` | Room has max participants |
+| `INVALID_TOKEN` | JWT token invalid |
+| `TOKEN_EXPIRED` | JWT token expired |
+| `WEBRTC_NOT_SUPPORTED` | WebRTC not supported |
+| `ICE_FAILED` | ICE connection failed |
+| `NEGOTIATION_FAILED` | SDP negotiation failed |
+
+**Internal Architecture:**
+```
+packages/sdk/src/
+├── CallSDK.ts         # Public facade (singleton)
+├── index.ts           # Public exports
+├── types.ts           # All types & error codes
+├── events/
+│   └── EventEmitter.ts    # Typed event emitter
+├── signaling/
+│   └── SignalingClient.ts # WebSocket to signaling server
+└── webrtc/
+    └── PeerConnection.ts  # RTCPeerConnection wrapper
+```
+
+**Build Output:**
+```bash
+pnpm build
+# dist/index.js   (27.84 KB, CommonJS)
+# dist/index.mjs  (26.81 KB, ES Module)
+# dist/index.d.ts (8.14 KB, TypeScript declarations)
+```
 
 ---
 
